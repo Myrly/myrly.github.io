@@ -35,6 +35,7 @@
             border: 2px solid var(--primary);
             border-radius: 5px;
             font-size: 1rem;
+            -webkit-tap-highlight-color: transparent;
         }
 
         button {
@@ -100,6 +101,7 @@
             text-align: center;
             width: 100%;
             max-width: 600px;
+            position: relative;
         }
 
         #counter {
@@ -137,6 +139,26 @@
             padding-top: 1rem;
             border-top: 2px solid var(--primary);
         }
+
+        /* Mobile Increment Button */
+        .mobile-increment {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            z-index: 100;
+        }
+
+        @media (hover: none) and (pointer: coarse) {
+            .mobile-increment {
+                display: block;
+            }
+        }
     </style>
 </head>
 <body>
@@ -154,6 +176,8 @@
         <div>Appuyez sur une touche pour incrémenter le compteur</div>
         <button onclick="showProgress()" style="margin-top: 1rem;">Actualiser la progression</button>
     </div>
+
+    <button class="mobile-increment" onclick="incrementCounter()">+</button>
 
     <div class="progress-container" id="progressContainer"></div>
 
@@ -232,16 +256,17 @@
                 `;
                 
                 card.addEventListener('click', () => {
+                    if (state.currentBook === book.id) return;
                     const previousBook = state.currentBook;
-                    state.currentBook = book.id;
                     updateCurrentPage(previousBook);
-                    renderBooks();
+                    selectBook(book.id);
                 });
                 grid.appendChild(card);
             });
 
-            document.querySelector('.counter-container').style.display = state.books.length > 0 ? 'block' : 'none';
-            document.getElementById('progressContainer').style.display = state.books.length > 0 ? 'block' : 'none';
+            const hasBooks = state.books.length > 0;
+            document.querySelector('.counter-container').style.display = hasBooks ? 'block' : 'none';
+            document.getElementById('progressContainer').style.display = hasBooks ? 'block' : 'none';
         }
 
         function updateCurrentPage(previousBookId) {
@@ -295,7 +320,6 @@
             
             let totalPages = 0;
             
-            // Update only current book if forceUpdate is true
             if (forceUpdate && state.currentBook) {
                 const book = state.books.find(b => b.id === state.currentBook);
                 if (book) {
@@ -310,7 +334,6 @@
                 }
             }
             
-            // Display progress for all books
             state.books.forEach(book => {
                 const start = state.startingPages[book.id];
                 const current = state.currentPages[book.id];
@@ -343,7 +366,12 @@
 
         document.addEventListener('keydown', e => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-            if (e.metaKey || e.key === 'Meta') return;
+            if ([
+                'Meta', 'Control', 'Alt', 'Shift', 'Escape', 'Fn',
+                'F1', 'F2', 'F3', 'F4', 'F5', 'F6',
+                'F7', 'F8', 'F9', 'F10', 'F11', 'F12'
+            ].includes(e.key)) return;
+            
             e.preventDefault();
             incrementCounter();
         });
