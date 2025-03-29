@@ -30,6 +30,20 @@
       flex-wrap: wrap;
     }
 
+    .update-buttons {
+      margin-top: 2rem;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .management-buttons {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+
     input, button {
       padding: 0.5rem 1rem;
       border: 2px solid var(--primary);
@@ -64,6 +78,10 @@
       border: 2px solid var(--primary);
       border-radius: 8px;
       transition: all 0.2s;
+    }
+
+    .book-card:hover {
+      background: #f5f5f5;
     }
 
     .book-card.active {
@@ -116,8 +134,8 @@
     .counter-container {
       margin-top: 2rem;
       text-align: center;
-      width: 100%;
-      max-width: 600px;
+      width: 95%;
+      max-width: 700px;
       position: relative;
       background: white;
       padding: 1.5rem;
@@ -182,7 +200,55 @@
       opacity: 0.9;
     }
 
-    @media (max-width: 768px) {
+    #fullResetButton {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      border: 2px solid var(--danger);
+      border-radius: 5px;
+      background: var(--danger);
+      color: white;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    #fullResetButton:hover {
+      opacity: 0.9;
+    }
+
+    .divider {
+      margin: 2rem 0;
+      border-top: 2px solid var(--primary);
+      width: 100%;
+      max-width: 800px;
+    }
+
+    .stats-section {
+      width: 95%;
+      max-width: 800px;
+      margin-top: 1rem;
+    }
+
+    .danger-zone {
+      margin-top: 3rem;
+      padding: 1rem;
+      border: 2px solid var(--danger);
+      border-radius: 8px;
+      max-width: 800px;
+      width: 100%;
+    }
+
+    #mobileBookSelect {
+      border: 2px solid var(--primary);
+      border-radius: 5px;
+      background: white;
+      font-size: 1rem;
+    }
+
+    .finished-books {
+      opacity: 0.7;
+      margin-top: 1.5rem;
+    }
+
+    @media (hover: none) {
       .book-grid {
         display: block;
         width: 100%;
@@ -215,6 +281,7 @@
   <div class="management-bar">
     <input type="text" id="bookInput" placeholder="Titre du livre">
     <input type="number" id="startingPage" title="Page de départ" min="1" value="1" placeholder="Page de départ">
+    <input type="text" id="genreInput" placeholder="Séparez chaque genre par une virgule">
     <button onclick="addBook()">Ajouter un livre</button>
   </div>
   
@@ -226,21 +293,37 @@
     <div id="counterHint"></div>
   </div>
 
-  <button id="refreshButton" onclick="showProgress()">Actualiser la progression</button>
+  <div class="update-buttons">
+    <button id="refreshButton" onclick="showProgress()">Actualiser la progression</button>
+    <button id="pauseButton" onclick="pause()">Je fais une pause</button>
+    <button id="unpauseButton" style="display: none" onclick="unpause()">Je reprends</button>
+  </div>
 
   <div class="progress-container" id="progressContainer"></div>
   
-  <button id="exportButton" onclick="exportData()">Exporter les données</button>
+  <div class="management-buttons">
+    <button id="exportButton" onclick="exportData()">Exporter les données</button>
+    <button id="fullResetButton" onclick="fullReset()" style="margin-left: auto;">Tout réinitialiser</button>
+  </div>
 
   <script>
-    let state = {
+   let state = {
       currentBook: null,
       books: JSON.parse(localStorage.getItem('books')) || [],
       counts: JSON.parse(localStorage.getItem('counts')) || {},
       currentPages: JSON.parse(localStorage.getItem('currentPages')) || {},
       startingPages: JSON.parse(localStorage.getItem('startingPages')) || {},
-      log: JSON.parse(localStorage.getItem('log')) || []
+      log: JSON.parse(localStorage.getItem('log')) || [],
+      paused: JSON.parse(localStorage.getItem('paused')) || false
     };
+
+    function getOngoingBooks() {
+      return state.books.filter(b => !b.read);
+    }
+
+    function getFinishedBooks() {
+      return state.books.filter(b => b.read);
+    }
 
     function logAction(action, details = {}) {
       const entry = {
@@ -255,7 +338,15 @@
     function init() {
       renderBooks();
       renderProgress();
-      if (state.books.length > 0) selectBook(state.books[0].id);
+      ongoingBooks = getOngoingBooks();
+      if (state.books.length > 0) selectBook(ongoingBooks[0].id);
+      if (state.paused) {
+        document.getElementById('pauseButton').style.display = 'none';
+        document.getElementById('unpauseButton').style.display = 'inline';
+      } else {
+        document.getElementById('pauseButton').style.display = 'inline';
+        document.getElementById('unpauseButton').style.display = 'none';
+      }
       configureDeviceUI();
       logAction("Init", { books: state.books.length });
     }
@@ -266,13 +357,12 @@
       const counterContainer = document.getElementById('counterContainer');
 
       if (isMobile) {
-        hintEl.textContent = "Appuyez sur la zone";
+        hintEl.textContent = "Appuyez sur la zone pour incrémenter le compteur";
         counterContainer.style.cursor = "pointer";
         document.addEventListener('touchstart', mobileIncrement, { passive: true });
       } else {
-        hintEl.textContent = "Appuyez sur une touche pour incrémenter le compteur";
+        hintEl.textContent = "Appuyez sur une touche du clavier pour incrémenter le compteur";
         counterContainer.style.cursor = "default";
-        counterContainer.appendChild(document.getElementById('refreshButton'));
       }
     }
 
@@ -282,20 +372,34 @@
       }
     }
 
+    function processGenres(input) {
+      return input.split(",").map(g => {
+        let genre = g.trim();
+        genre = genre.replace(/\s+/g, "-");
+        genre = genre.replace(/[^a-zA-Z0-9\/\-_]/g, "");
+        return genre;
+      }).filter(genre => genre !== "");
+    }
+
     function addBook() {
       const input = document.getElementById('bookInput');
       const startingPageInput = document.getElementById('startingPage');
+      const genreInput = document.getElementById('genreInput');
       const title = input.value.trim();
       let startingPage = parseInt(startingPageInput.value);
 
       if (isNaN(startingPage) || startingPage < 1) startingPage = 1;
 
       if (title) {
+        const rawGenres = genreInput.value;
+        const genres = rawGenres ? processGenres(rawGenres) : [];
+
         const newBook = {
           id: Date.now(),
           title: title,
           startingPage: startingPage,
-          read: false
+          read: false,
+          genres: genres
         };
 
         state.books.push(newBook);
@@ -304,56 +408,71 @@
         state.startingPages[newBook.id] = startingPage;
         saveState();
         renderBooks();
-        selectBook(newBook.id);
+        if (state.currentBook == null) {
+          selectBook(newBook.id);
+        }
         logAction("Add Book", { id: newBook.id, title });
         input.value = '';
         startingPageInput.value = '1';
+        genreInput.value = '';
       }
     }
 
-    function deleteBook(id) {
+    function deleteBook(e, id) {
+      e.stopPropagation();
       if (confirm('Supprimer ce livre et son compteur ?')) {
+        const wasCurrent = state.currentBook === id;
+
         state.books = state.books.filter(b => b.id !== id);
         delete state.counts[id];
         delete state.currentPages[id];
         delete state.startingPages[id];
+        
         saveState();
+
+        if (wasCurrent) {
+          const ongoing = getOngoingBooks();
+          if (ongoing.length > 0) {
+            selectBook(ongoing[0].id);
+          } else {
+            state.currentBook = null;
+            document.getElementById('bookTitle').textContent = '';
+            updateCounterDisplay();
+          }
+        }
+        
         renderBooks();
         renderProgress();
         logAction("Delete Book", { id });
-        if (state.currentBook === id) {
-          state.currentBook = state.books[0]?.id || null;
-          if (state.currentBook) selectBook(state.currentBook);
-        }
       }
     }
 
-    function markAsRead(id) {
+    function markAsRead(e, id) {
+      e.stopPropagation();
       const book = state.books.find(b => b.id === id);
       if (book && !book.read) {
         const currentPage = prompt(`Page actuelle pour "${book.title}" ?`, state.currentPages[id]);
         if (currentPage !== null) {
           let newPage = parseInt(currentPage);
-          if (!isNaN(newPage)) {
-            state.currentPages[id] = newPage;
-          }
+          if (!isNaN(newPage)) state.currentPages[id] = newPage;
         }
         book.read = true;
         saveState();
-        
+
         if (state.currentBook === id) {
-          const nextBook = state.books.find(b => !b.read);
-          if (nextBook) {
-            selectBook(nextBook.id);
+          const ongoing = getOngoingBooks();
+          if (ongoing.length > 0) {
+            selectBook(ongoing[0].id);
           } else {
             state.currentBook = null;
-            document.getElementById('bookTitle').textContent = "";
-            document.getElementById('counter').textContent = "0";
+            document.getElementById('bookTitle').textContent = '';
+            updateCounterDisplay();
           }
         }
-        
+
         renderBooks();
         renderProgress();
+        logAction("Read Book", { id });
       }
     }
 
@@ -361,12 +480,13 @@
       const grid = document.getElementById('bookGrid');
       grid.innerHTML = '';
 
+      const ongoingBooks = getOngoingBooks();
+      const finishedBooks = getFinishedBooks();
       const isMobile = window.matchMedia("(pointer: coarse)").matches;
 
       if (isMobile) {
         const select = document.createElement('select');
         select.id = 'mobileBookSelect';
-        select.innerHTML = '<option value="">Sélectionner un livre</option>';
 
         state.books.forEach(book => {
           if (!book.read) {
@@ -379,8 +499,7 @@
         });
 
         select.addEventListener('change', (e) => {
-          const id = parseInt(e.target.value);
-          if (id) selectBook(id);
+            selectBook(parseInt(e.target.value));
         });
 
         const buttonContainer = document.createElement('div');
@@ -393,7 +512,7 @@
         grid.appendChild(select);
         grid.appendChild(buttonContainer);
       } else {
-        state.books.forEach(book => {
+        ongoingBooks.forEach(book => {
           const cardClasses = ["book-card"];
           if (state.currentBook === book.id) cardClasses.push("active");
           if (book.read) cardClasses.push("read");
@@ -402,8 +521,8 @@
           card.className = cardClasses.join(" ");
           card.innerHTML = `
             <div class="book-actions">
-              <button class="action-btn delete" onclick="deleteBook(${book.id})">× Supprimer</button>
-              <button class="action-btn mark-read" onclick="markAsRead(${book.id})">✓ Terminé</button>
+              <button class="action-btn delete" onclick="deleteBook(event, ${book.id})">× Supprimer</button>
+              <button class="action-btn mark-read" onclick="markAsRead(event, ${book.id})">✓ Terminé</button>
             </div>
             <div class="book-title">${book.title}</div>
           `;
@@ -440,9 +559,24 @@
 
     function selectBook(id) {
       state.currentBook = id;
-      document.getElementById('bookTitle').textContent = `${state.books.find(b => b.id === id)?.title || ''} - Pages spéciales`;
+      document.getElementById('bookTitle').textContent = `${state.books.find(b => b.id === id)?.title || ''} - Pages spéciales (à ne pas compter)`;
       updateCounterDisplay();
       renderBooks();
+    }
+
+    function autoSelectBook() {
+      const ongoing = getOngoingBooks();
+      if (ongoing.length > 0) {
+        const firstOngoing = ongoing[0];
+        if (firstOngoing.id !== state.currentBook) {
+          selectBook(firstOngoing.id);
+        }
+      } else {
+        state.currentBook = null;
+        document.getElementById('bookTitle').textContent = '';
+        updateCounterDisplay();
+        renderBooks();
+      }
     }
 
     function incrementCounter() {
@@ -459,6 +593,22 @@
       document.getElementById('counter').textContent = count;
     }
 
+    function pause() {
+      state.paused = true;
+      saveState();
+      logAction("pause");
+      document.getElementById('pauseButton').style.display = 'none';
+      document.getElementById('unpauseButton').style.display = 'inline';
+    }
+
+    function unpause() {
+      state.paused = false;
+      saveState();
+      logAction("unpause");
+      document.getElementById('pauseButton').style.display = 'inline';
+      document.getElementById('unpauseButton').style.display = 'none';
+    }
+
     function animateCounter() {
       const counter = document.getElementById('counter');
       counter.style.transform = 'scale(1.1)';
@@ -471,8 +621,10 @@
 
     function renderProgress(forceUpdate = false) {
       const container = document.getElementById('progressContainer');
-      container.innerHTML = '<h3>Progression des Livres</h3>';
-
+      container.innerHTML = '';
+      
+      const ongoingBooks = getOngoingBooks();
+      const finishedBooks = getFinishedBooks();
       let totalPages = 0;
 
       if (forceUpdate && state.currentBook) {
@@ -489,26 +641,47 @@
         }
       }
 
-      state.books.forEach(book => {
+      const ongoingSection = document.createElement('div');
+      ongoingSection.innerHTML = '<h3>Progression en Cours</h3>';
+      ongoingBooks.forEach(book => {
         const start = state.startingPages[book.id];
         const current = state.currentPages[book.id];
         const count = state.counts[book.id] || 0;
         const progress = current - start - count;
-
         totalPages += progress;
 
-        const entry = document.createElement('div');
-        entry.className = 'progress-entry';
-        entry.innerHTML = `
-          <span>${book.title}</span>
-          <span>${progress} pages (${current} - ${start} - ${count})</span>
+        ongoingSection.innerHTML += `
+          <div class="progress-entry">
+            <span>${book.title}</span>
+            <span>${progress} pages (${current} - ${start} - ${count})</span>
+          </div>
         `;
-        container.appendChild(entry);
       });
+      container.appendChild(ongoingSection);
+
+      if (finishedBooks.length > 0) {
+        const finishedSection = document.createElement('div');
+        finishedSection.innerHTML = '<h3>Livres Terminés</h3>';
+        finishedBooks.forEach(book => {
+          const start = state.startingPages[book.id];
+          const current = state.currentPages[book.id];
+          const count = state.counts[book.id] || 0;
+          const progress = current - start - count;
+          totalPages += progress;
+
+          finishedSection.innerHTML += `
+            <div class="progress-entry read">
+              <span>${book.title}</span>
+              <span>${progress} pages (${current} - ${start} - ${count})</span>
+            </div>
+          `;
+        });
+        container.appendChild(finishedSection);
+      }
 
       const totalElement = document.createElement('div');
       totalElement.className = 'progress-total';
-      totalElement.textContent = `Total des pages de texte: ${totalPages}`;
+      totalElement.textContent = `Total Général: ${totalPages} pages`;
       container.appendChild(totalElement);
     }
 
@@ -518,6 +691,7 @@
       localStorage.setItem('currentPages', JSON.stringify(state.currentPages));
       localStorage.setItem('startingPages', JSON.stringify(state.startingPages));
       localStorage.setItem('log', JSON.stringify(state.log));
+      localStorage.setItem('paused', JSON.stringify(state.paused));
     }
 
     function exportData() {
@@ -526,9 +700,10 @@
         .replace(/T/, '_')
         .replace(/\..+/, '')
         .replace(/:/g, '-');
-      const fileName = `bookathon-data-export-${formattedDate}.json`;
+      const fileName = `bookathon_data_export_${formattedDate}.json`;
       
       const data = {
+        version: 1,
         books: state.books,
         counts: state.counts,
         currentPages: state.currentPages,
@@ -549,12 +724,31 @@
       const select = document.getElementById('mobileBookSelect');
       const id = parseInt(select.value);
       if (id) deleteBook(id);
+      select.value = state.currentBook || '';
     }
 
     function markAsReadMobile() {
       const select = document.getElementById('mobileBookSelect');
       const id = parseInt(select.value);
       if (id) markAsRead(id);
+    }
+
+    function fullReset() {
+      if (confirm('Êtes-vous sûr de vouloir tout réinitialiser ? Toutes les données seront perdues.')) {
+        localStorage.clear();
+        state = {
+          currentBook: null,
+          books: [],
+          counts: {},
+          currentPages: {},
+          startingPages: {},
+          log: []
+        };
+        renderBooks();
+        renderProgress();
+        document.querySelector('.counter-container').style.display = 'none';
+        document.getElementById('progressContainer').style.display = 'none';
+      }
     }
 
     document.addEventListener('keydown', e => {
