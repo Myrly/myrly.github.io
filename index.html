@@ -2,7 +2,6 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <!-- Disable zoom on mobile devices -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Gestionnaire de Progression Littéraire</title>
   <style>
@@ -72,9 +71,10 @@
       background: #f0f8ff;
     }
     
-    /* When a book is marked as read */
     .book-card.read {
-      opacity: 0.6;
+      background: #ddd !important;
+      opacity: 0.9;
+      text-decoration: line-through;
       pointer-events: none;
     }
 
@@ -88,18 +88,19 @@
       transition: opacity 0.2s;
     }
 
-    /* Always show book actions on mobile (no hover) */
-    @media (hover: none) {
-      .book-actions {
-        opacity: 1 !important;
-      }
+    .book-card:hover .book-actions {
+      opacity: 1;
     }
 
     .action-btn {
-      padding: 2px 8px;
+      padding: 4px 8px;
       border: none;
       background: rgba(0,0,0,0.1);
       cursor: pointer;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
 
     .action-btn.delete {
@@ -167,7 +168,6 @@
       border-top: 2px solid var(--primary);
     }
     
-    /* Export button styling */
     #exportButton {
       margin-top: 1rem;
       padding: 0.5rem 1rem;
@@ -181,6 +181,34 @@
     #exportButton:hover {
       opacity: 0.9;
     }
+
+    @media (max-width: 768px) {
+      .book-grid {
+        display: block;
+        width: 100%;
+        max-width: 400px;
+        margin: 0 auto;
+      }
+
+      #mobileBookSelect {
+        width: 100%;
+        padding: 0.5rem;
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .mobile-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        width: 100%;
+      }
+
+      .mobile-buttons button {
+        width: 100%;
+        padding: 0.5rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -192,23 +220,19 @@
   
   <div class="book-grid" id="bookGrid"></div>
 
-  <!-- Counter container -->
   <div class="counter-container" id="counterContainer">
     <h2 id="bookTitle"></h2>
     <div id="counter">0</div>
     <div id="counterHint"></div>
   </div>
 
-  <!-- Refresh button -->
   <button id="refreshButton" onclick="showProgress()">Actualiser la progression</button>
 
   <div class="progress-container" id="progressContainer"></div>
   
-  <!-- Export button -->
   <button id="exportButton" onclick="exportData()">Exporter les données</button>
 
   <script>
-    // Initialize state (including log)
     let state = {
       currentBook: null,
       books: JSON.parse(localStorage.getItem('books')) || [],
@@ -237,31 +261,22 @@
     }
 
     function configureDeviceUI() {
-      // Check if device is mobile (coarse pointer)
       const isMobile = window.matchMedia("(pointer: coarse)").matches;
       const hintEl = document.getElementById('counterHint');
-      const refreshBtn = document.getElementById('refreshButton');
       const counterContainer = document.getElementById('counterContainer');
 
       if (isMobile) {
-        // Mobile: set hint in English and add margin to refresh button
-        hintEl.textContent = "Press the box";
+        hintEl.textContent = "Appuyez sur la zone";
         counterContainer.style.cursor = "pointer";
-        refreshBtn.style.marginTop = "1rem";
-        // On mobile, clicking the counter container increments the counter.
-        counterContainer.addEventListener('click', mobileIncrement);
+        document.addEventListener('touchstart', mobileIncrement, { passive: true });
       } else {
-        // Desktop: set hint in French; key presses will increment the counter.
         hintEl.textContent = "Appuyez sur une touche pour incrémenter le compteur";
         counterContainer.style.cursor = "default";
-        counterContainer.removeEventListener('click', mobileIncrement);
-        // Move refresh button inside counter container for convenience.
-        counterContainer.appendChild(refreshBtn);
+        counterContainer.appendChild(document.getElementById('refreshButton'));
       }
     }
 
     function mobileIncrement(e) {
-      // Avoid increment if clicking on a button (refresh, delete, or mark read)
       if (e.target.tagName !== "BUTTON") {
         incrementCounter();
       }
@@ -316,16 +331,29 @@
     function markAsRead(id) {
       const book = state.books.find(b => b.id === id);
       if (book && !book.read) {
+        const currentPage = prompt(`Page actuelle pour "${book.title}" ?`, state.currentPages[id]);
+        if (currentPage !== null) {
+          let newPage = parseInt(currentPage);
+          if (!isNaN(newPage)) {
+            state.currentPages[id] = newPage;
+          }
+        }
         book.read = true;
         saveState();
-        renderBooks();
-        // If the read book was selected, clear currentBook
+        
         if (state.currentBook === id) {
-          state.currentBook = null;
-          document.getElementById('bookTitle').textContent = "";
-          document.getElementById('counter').textContent = "0";
+          const nextBook = state.books.find(b => !b.read);
+          if (nextBook) {
+            selectBook(nextBook.id);
+          } else {
+            state.currentBook = null;
+            document.getElementById('bookTitle').textContent = "";
+            document.getElementById('counter').textContent = "0";
+          }
         }
-        logAction("Mark as Read", { id, title: book.title });
+        
+        renderBooks();
+        renderProgress();
       }
     }
 
@@ -333,33 +361,63 @@
       const grid = document.getElementById('bookGrid');
       grid.innerHTML = '';
 
-      state.books.forEach(book => {
-        // Add a "read" class if book.read is true
-        const cardClasses = ["book-card"];
-        if (state.currentBook === book.id) cardClasses.push("active");
-        if (book.read) cardClasses.push("read");
+      const isMobile = window.matchMedia("(pointer: coarse)").matches;
 
-        const card = document.createElement('div');
-        card.className = cardClasses.join(" ");
-        card.innerHTML = `
-          <div class="book-actions">
-            <button class="action-btn delete" onclick="deleteBook(${book.id})">×</button>
-            <button class="action-btn mark-read" onclick="markAsRead(${book.id})">✓</button>
-          </div>
-          <div class="book-title">${book.title}</div>
+      if (isMobile) {
+        const select = document.createElement('select');
+        select.id = 'mobileBookSelect';
+        select.innerHTML = '<option value="">Sélectionner un livre</option>';
+
+        state.books.forEach(book => {
+          if (!book.read) {
+            const option = document.createElement('option');
+            option.value = book.id;
+            option.textContent = book.title;
+            option.selected = state.currentBook === book.id;
+            select.appendChild(option);
+          }
+        });
+
+        select.addEventListener('change', (e) => {
+          const id = parseInt(e.target.value);
+          if (id) selectBook(id);
+        });
+
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'mobile-buttons';
+        buttonContainer.innerHTML = `
+          <button class="action-btn delete" onclick="deleteBookMobile()">× Supprimer</button>
+          <button class="action-btn mark-read" onclick="markAsReadMobile()">✓ Terminé</button>
         `;
 
-        // Only allow selection if the book is not marked as read.
-        card.addEventListener('click', () => {
-          if (book.read) return;
-          if (state.currentBook === book.id) return;
-          const previousBook = state.currentBook;
-          updateCurrentPage(previousBook);
-          selectBook(book.id);
-          logAction("Select Book", { id: book.id, title: book.title });
+        grid.appendChild(select);
+        grid.appendChild(buttonContainer);
+      } else {
+        state.books.forEach(book => {
+          const cardClasses = ["book-card"];
+          if (state.currentBook === book.id) cardClasses.push("active");
+          if (book.read) cardClasses.push("read");
+
+          const card = document.createElement('div');
+          card.className = cardClasses.join(" ");
+          card.innerHTML = `
+            <div class="book-actions">
+              <button class="action-btn delete" onclick="deleteBook(${book.id})">× Supprimer</button>
+              <button class="action-btn mark-read" onclick="markAsRead(${book.id})">✓ Terminé</button>
+            </div>
+            <div class="book-title">${book.title}</div>
+          `;
+
+          if (!book.read) {
+            card.addEventListener('click', () => {
+              if (state.currentBook === book.id) return;
+              updateCurrentPage(state.currentBook);
+              selectBook(book.id);
+            });
+          }
+          grid.appendChild(card);
         });
-        grid.appendChild(card);
-      });
+      }
 
       const hasBooks = state.books.length > 0;
       document.querySelector('.counter-container').style.display = hasBooks ? 'block' : 'none';
@@ -375,7 +433,6 @@
             state.currentPages[previousBookId] = newPage;
             saveState();
             renderProgress();
-            logAction("Update Page", { id: previousBookId, newPage });
           }
         }
       }
@@ -395,7 +452,6 @@
       updateCounterDisplay();
       animateCounter();
       renderProgress();
-      logAction("Increment Counter", { id: state.currentBook, count: state.counts[state.currentBook] });
     }
 
     function updateCounterDisplay() {
@@ -428,7 +484,6 @@
             if (!isNaN(newPage)) {
               state.currentPages[book.id] = newPage;
               saveState();
-              logAction("Force Update Page", { id: book.id, newPage });
             }
           }
         }
@@ -466,6 +521,13 @@
     }
 
     function exportData() {
+      const now = new Date();
+      const formattedDate = now.toISOString()
+        .replace(/T/, '_')
+        .replace(/\..+/, '')
+        .replace(/:/g, '-');
+      const fileName = `bookathon-data-export-${formattedDate}.json`;
+      
       const data = {
         books: state.books,
         counts: state.counts,
@@ -478,13 +540,23 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'data_export.json';
+      a.download = fileName;
       a.click();
       URL.revokeObjectURL(url);
-      logAction("Export Data");
     }
 
-    // Allow keyboard presses to increment the counter on desktop.
+    function deleteBookMobile() {
+      const select = document.getElementById('mobileBookSelect');
+      const id = parseInt(select.value);
+      if (id) deleteBook(id);
+    }
+
+    function markAsReadMobile() {
+      const select = document.getElementById('mobileBookSelect');
+      const id = parseInt(select.value);
+      if (id) markAsRead(id);
+    }
+
     document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if ([
