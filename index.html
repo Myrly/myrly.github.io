@@ -2,7 +2,8 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Disable zoom on mobile devices -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Gestionnaire de Progression Littéraire</title>
   <style>
     :root {
@@ -106,7 +107,7 @@
       padding: 1.5rem;
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      /* Cursor is helpful on desktop */
+      /* Only mobile devices will use pointer events */
       cursor: pointer;
     }
 
@@ -121,19 +122,6 @@
       margin-bottom: 1rem;
       font-size: 1rem;
       color: #555;
-    }
-
-    /* Big mobile + button styling */
-    #mobileIncrement {
-      display: none; /* Hidden by default (desktop) */
-      font-size: 3rem;
-      padding: 1rem 2rem;
-      border: 3px solid var(--primary);
-      background: var(--secondary);
-      color: white;
-      border-radius: 8px;
-      cursor: pointer;
-      margin-top: 1rem;
     }
 
     input[type="number"] {
@@ -180,8 +168,6 @@
     <h2 id="bookTitle"></h2>
     <div id="counter">0</div>
     <div id="counterHint"></div>
-    <!-- Mobile: a large + button will be shown here -->
-    <button id="mobileIncrement" onclick="incrementCounter()">+</button>
   </div>
 
   <!-- Refresh button -->
@@ -209,24 +195,30 @@
       // Check if device is mobile (coarse pointer)
       const isMobile = window.matchMedia("(pointer: coarse)").matches;
       const hintEl = document.getElementById('counterHint');
-      const mobileBtn = document.getElementById('mobileIncrement');
       const refreshBtn = document.getElementById('refreshButton');
       const counterContainer = document.getElementById('counterContainer');
 
       if (isMobile) {
-        // Mobile: show a big + button, hint in English, and move refresh button outside
+        // Mobile: set hint in English and leave refresh button outside with some top margin
         hintEl.textContent = "Press the box";
-        mobileBtn.style.display = "block";
-        // Make counter container not clickable so that the big + button is used exclusively
-        counterContainer.style.cursor = "default";
-        // Ensure refresh button remains outside (its default placement)
-      } else {
-        // Desktop: hide mobile button, set hint in French and make the whole container clickable
-        hintEl.textContent = "Appuyez sur une touche du clavier pour incrémenter le compteur";
-        mobileBtn.style.display = "none";
         counterContainer.style.cursor = "pointer";
-        // Move refresh button inside the counter container for convenience
+        refreshBtn.style.marginTop = "1rem";
+        // On mobile, clicking the counter container will increment the counter.
+        counterContainer.addEventListener('click', mobileIncrement);
+      } else {
+        // Desktop: set hint in French and move refresh button inside the counter container.
+        hintEl.textContent = "Appuyez sur une touche pour incrémenter le compteur";
+        counterContainer.style.cursor = "default";
         counterContainer.appendChild(refreshBtn);
+        // Remove any mobile click listener if present.
+        counterContainer.removeEventListener('click', mobileIncrement);
+      }
+    }
+
+    function mobileIncrement(e) {
+      // Avoid increment if the user clicked the refresh button
+      if (e.target.tagName !== "BUTTON") {
+        incrementCounter();
       }
     }
 
@@ -398,7 +390,7 @@
       localStorage.setItem('startingPages', JSON.stringify(state.startingPages));
     }
 
-    // Desktop: allow keyboard presses or clicking the counter container (if not mobile)
+    // Allow keyboard presses to increment the counter on desktop
     document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if ([
@@ -409,17 +401,6 @@
 
       e.preventDefault();
       incrementCounter();
-    });
-
-    // For desktop, clicking anywhere on the counter container increments the counter.
-    document.getElementById('counterContainer').addEventListener('click', function(e) {
-      // Only trigger if not clicking the mobile button (if it exists) or refresh button.
-      if (e.target.tagName !== "BUTTON") {
-        // On desktop only – mobile uses the big + button.
-        if (!window.matchMedia("(pointer: coarse)").matches) {
-          incrementCounter();
-        }
-      }
     });
 
     init();
