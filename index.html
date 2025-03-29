@@ -71,6 +71,12 @@
       border-color: var(--secondary);
       background: #f0f8ff;
     }
+    
+    /* When a book is marked as read */
+    .book-card.read {
+      opacity: 0.6;
+      pointer-events: none;
+    }
 
     .book-actions {
       position: absolute;
@@ -82,18 +88,27 @@
       transition: opacity 0.2s;
     }
 
-    .book-card:hover .book-actions {
-      opacity: 1;
+    /* Always show book actions on mobile (no hover) */
+    @media (hover: none) {
+      .book-actions {
+        opacity: 1 !important;
+      }
     }
 
     .action-btn {
       padding: 2px 8px;
       border: none;
       background: rgba(0,0,0,0.1);
+      cursor: pointer;
     }
 
     .action-btn.delete {
       background: var(--danger);
+      color: white;
+    }
+    
+    .action-btn.mark-read {
+      background: var(--success);
       color: white;
     }
 
@@ -107,7 +122,6 @@
       padding: 1.5rem;
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      /* Only mobile devices will use pointer events */
       cursor: pointer;
     }
 
@@ -152,6 +166,21 @@
       padding-top: 1rem;
       border-top: 2px solid var(--primary);
     }
+    
+    /* Export button styling */
+    #exportButton {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      border: 2px solid var(--primary);
+      border-radius: 5px;
+      background: var(--primary);
+      color: white;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    #exportButton:hover {
+      opacity: 0.9;
+    }
   </style>
 </head>
 <body>
@@ -174,21 +203,37 @@
   <button id="refreshButton" onclick="showProgress()">Actualiser la progression</button>
 
   <div class="progress-container" id="progressContainer"></div>
+  
+  <!-- Export button -->
+  <button id="exportButton" onclick="exportData()">Exporter les données</button>
 
   <script>
+    // Initialize state (including log)
     let state = {
       currentBook: null,
       books: JSON.parse(localStorage.getItem('books')) || [],
       counts: JSON.parse(localStorage.getItem('counts')) || {},
       currentPages: JSON.parse(localStorage.getItem('currentPages')) || {},
-      startingPages: JSON.parse(localStorage.getItem('startingPages')) || {}
+      startingPages: JSON.parse(localStorage.getItem('startingPages')) || {},
+      log: JSON.parse(localStorage.getItem('log')) || []
     };
+
+    function logAction(action, details = {}) {
+      const entry = {
+        timestamp: new Date().toISOString(),
+        action,
+        details
+      };
+      state.log.push(entry);
+      saveState();
+    }
 
     function init() {
       renderBooks();
       renderProgress();
       if (state.books.length > 0) selectBook(state.books[0].id);
       configureDeviceUI();
+      logAction("Init", { books: state.books.length });
     }
 
     function configureDeviceUI() {
@@ -199,24 +244,24 @@
       const counterContainer = document.getElementById('counterContainer');
 
       if (isMobile) {
-        // Mobile: set hint in English and leave refresh button outside with some top margin
+        // Mobile: set hint in English and add margin to refresh button
         hintEl.textContent = "Press the box";
         counterContainer.style.cursor = "pointer";
         refreshBtn.style.marginTop = "1rem";
-        // On mobile, clicking the counter container will increment the counter.
+        // On mobile, clicking the counter container increments the counter.
         counterContainer.addEventListener('click', mobileIncrement);
       } else {
-        // Desktop: set hint in French and move refresh button inside the counter container.
+        // Desktop: set hint in French; key presses will increment the counter.
         hintEl.textContent = "Appuyez sur une touche pour incrémenter le compteur";
         counterContainer.style.cursor = "default";
-        counterContainer.appendChild(refreshBtn);
-        // Remove any mobile click listener if present.
         counterContainer.removeEventListener('click', mobileIncrement);
+        // Move refresh button inside counter container for convenience.
+        counterContainer.appendChild(refreshBtn);
       }
     }
 
     function mobileIncrement(e) {
-      // Avoid increment if the user clicked the refresh button
+      // Avoid increment if clicking on a button (refresh, delete, or mark read)
       if (e.target.tagName !== "BUTTON") {
         incrementCounter();
       }
@@ -228,14 +273,14 @@
       const title = input.value.trim();
       let startingPage = parseInt(startingPageInput.value);
 
-      if (isNaN(startingPage)) startingPage = 1;
-      if (startingPage < 1) startingPage = 1;
+      if (isNaN(startingPage) || startingPage < 1) startingPage = 1;
 
       if (title) {
         const newBook = {
           id: Date.now(),
           title: title,
-          startingPage: startingPage
+          startingPage: startingPage,
+          read: false
         };
 
         state.books.push(newBook);
@@ -245,6 +290,7 @@
         saveState();
         renderBooks();
         selectBook(newBook.id);
+        logAction("Add Book", { id: newBook.id, title });
         input.value = '';
         startingPageInput.value = '1';
       }
@@ -259,11 +305,27 @@
         saveState();
         renderBooks();
         renderProgress();
-
+        logAction("Delete Book", { id });
         if (state.currentBook === id) {
           state.currentBook = state.books[0]?.id || null;
           if (state.currentBook) selectBook(state.currentBook);
         }
+      }
+    }
+
+    function markAsRead(id) {
+      const book = state.books.find(b => b.id === id);
+      if (book && !book.read) {
+        book.read = true;
+        saveState();
+        renderBooks();
+        // If the read book was selected, clear currentBook
+        if (state.currentBook === id) {
+          state.currentBook = null;
+          document.getElementById('bookTitle').textContent = "";
+          document.getElementById('counter').textContent = "0";
+        }
+        logAction("Mark as Read", { id, title: book.title });
       }
     }
 
@@ -272,20 +334,29 @@
       grid.innerHTML = '';
 
       state.books.forEach(book => {
+        // Add a "read" class if book.read is true
+        const cardClasses = ["book-card"];
+        if (state.currentBook === book.id) cardClasses.push("active");
+        if (book.read) cardClasses.push("read");
+
         const card = document.createElement('div');
-        card.className = `book-card ${state.currentBook === book.id ? 'active' : ''}`;
+        card.className = cardClasses.join(" ");
         card.innerHTML = `
           <div class="book-actions">
             <button class="action-btn delete" onclick="deleteBook(${book.id})">×</button>
+            <button class="action-btn mark-read" onclick="markAsRead(${book.id})">✓</button>
           </div>
           <div class="book-title">${book.title}</div>
         `;
 
+        // Only allow selection if the book is not marked as read.
         card.addEventListener('click', () => {
+          if (book.read) return;
           if (state.currentBook === book.id) return;
           const previousBook = state.currentBook;
           updateCurrentPage(previousBook);
           selectBook(book.id);
+          logAction("Select Book", { id: book.id, title: book.title });
         });
         grid.appendChild(card);
       });
@@ -304,6 +375,7 @@
             state.currentPages[previousBookId] = newPage;
             saveState();
             renderProgress();
+            logAction("Update Page", { id: previousBookId, newPage });
           }
         }
       }
@@ -323,6 +395,7 @@
       updateCounterDisplay();
       animateCounter();
       renderProgress();
+      logAction("Increment Counter", { id: state.currentBook, count: state.counts[state.currentBook] });
     }
 
     function updateCounterDisplay() {
@@ -355,6 +428,7 @@
             if (!isNaN(newPage)) {
               state.currentPages[book.id] = newPage;
               saveState();
+              logAction("Force Update Page", { id: book.id, newPage });
             }
           }
         }
@@ -388,9 +462,29 @@
       localStorage.setItem('counts', JSON.stringify(state.counts));
       localStorage.setItem('currentPages', JSON.stringify(state.currentPages));
       localStorage.setItem('startingPages', JSON.stringify(state.startingPages));
+      localStorage.setItem('log', JSON.stringify(state.log));
     }
 
-    // Allow keyboard presses to increment the counter on desktop
+    function exportData() {
+      const data = {
+        books: state.books,
+        counts: state.counts,
+        currentPages: state.currentPages,
+        startingPages: state.startingPages,
+        log: state.log
+      };
+      const jsonData = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'data_export.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      logAction("Export Data");
+    }
+
+    // Allow keyboard presses to increment the counter on desktop.
     document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if ([
