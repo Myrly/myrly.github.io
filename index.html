@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestionnaire de Progression Littéraire</title>
+  <style>
+    :root {
+      --primary: #2c3e50;
+      --secondary: #3498db;
+      --danger: #e74c3c;
+      --success: #2ecc71;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #f8f9fa;
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 20px;
+    }
+
+    .management-bar {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+
+    input, button {
+      padding: 0.5rem 1rem;
+      border: 2px solid var(--primary);
+      border-radius: 5px;
+      font-size: 1rem;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button {
+      background: var(--primary);
+      color: white;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .book-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      width: 100%;
+      max-width: 1000px;
+    }
+
+    .book-card {
+      position: relative;
+      padding: 1rem;
+      background: white;
+      border: 2px solid var(--primary);
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .book-card.active {
+      border-color: var(--secondary);
+      background: #f0f8ff;
+    }
+
+    .book-actions {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      display: flex;
+      gap: 5px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .book-card:hover .book-actions {
+      opacity: 1;
+    }
+
+    .action-btn {
+      padding: 2px 8px;
+      border: none;
+      background: rgba(0,0,0,0.1);
+    }
+
+    .action-btn.delete {
+      background: var(--danger);
+      color: white;
+    }
+
+    .counter-container {
+      margin-top: 2rem;
+      text-align: center;
+      width: 100%;
+      max-width: 600px;
+      position: relative;
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      /* Cursor is helpful on desktop */
+      cursor: pointer;
+    }
+
+    #counter {
+      font-size: 6rem;
+      font-weight: bold;
+      color: var(--primary);
+      margin: 1rem 0;
+    }
+
+    #counterHint {
+      margin-bottom: 1rem;
+      font-size: 1rem;
+      color: #555;
+    }
+
+    /* Big mobile + button styling */
+    #mobileIncrement {
+      display: none; /* Hidden by default (desktop) */
+      font-size: 3rem;
+      padding: 1rem 2rem;
+      border: 3px solid var(--primary);
+      background: var(--secondary);
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 1rem;
+    }
+
+    input[type="number"] {
+      width: 120px;
+    }
+
+    .progress-container {
+      margin-top: 2rem;
+      width: 100%;
+      max-width: 800px;
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .progress-entry {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .progress-total {
+      font-weight: bold;
+      color: var(--success);
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 2px solid var(--primary);
+    }
+  </style>
+</head>
+<body>
+  <div class="management-bar">
+    <input type="text" id="bookInput" placeholder="Titre du livre">
+    <input type="number" id="startingPage" title="Page de départ" min="1" value="1" placeholder="Page de départ">
+    <button onclick="addBook()">Ajouter un livre</button>
+  </div>
+  
+  <div class="book-grid" id="bookGrid"></div>
+
+  <!-- Counter container -->
+  <div class="counter-container" id="counterContainer">
+    <h2 id="bookTitle"></h2>
+    <div id="counter">0</div>
+    <div id="counterHint"></div>
+    <!-- Mobile: a large + button will be shown here -->
+    <button id="mobileIncrement" onclick="incrementCounter()">+</button>
+  </div>
+
+  <!-- Refresh button -->
+  <button id="refreshButton" onclick="showProgress()">Actualiser la progression</button>
+
+  <div class="progress-container" id="progressContainer"></div>
+
+  <script>
+    let state = {
+      currentBook: null,
+      books: JSON.parse(localStorage.getItem('books')) || [],
+      counts: JSON.parse(localStorage.getItem('counts')) || {},
+      currentPages: JSON.parse(localStorage.getItem('currentPages')) || {},
+      startingPages: JSON.parse(localStorage.getItem('startingPages')) || {}
+    };
+
+    function init() {
+      renderBooks();
+      renderProgress();
+      if (state.books.length > 0) selectBook(state.books[0].id);
+      configureDeviceUI();
+    }
+
+    function configureDeviceUI() {
+      // Check if device is mobile (coarse pointer)
+      const isMobile = window.matchMedia("(pointer: coarse)").matches;
+      const hintEl = document.getElementById('counterHint');
+      const mobileBtn = document.getElementById('mobileIncrement');
+      const refreshBtn = document.getElementById('refreshButton');
+      const counterContainer = document.getElementById('counterContainer');
+
+      if (isMobile) {
+        // Mobile: show a big + button, hint in English, and move refresh button outside
+        hintEl.textContent = "Press the box";
+        mobileBtn.style.display = "block";
+        // Make counter container not clickable so that the big + button is used exclusively
+        counterContainer.style.cursor = "default";
+        // Ensure refresh button remains outside (its default placement)
+      } else {
+        // Desktop: hide mobile button, set hint in French and make the whole container clickable
+        hintEl.textContent = "Appuyez sur une touche du clavier pour incrémenter le compteur";
+        mobileBtn.style.display = "none";
+        counterContainer.style.cursor = "pointer";
+        // Move refresh button inside the counter container for convenience
+        counterContainer.appendChild(refreshBtn);
+      }
+    }
+
+    function addBook() {
+      const input = document.getElementById('bookInput');
+      const startingPageInput = document.getElementById('startingPage');
+      const title = input.value.trim();
+      let startingPage = parseInt(startingPageInput.value);
+
+      if (isNaN(startingPage)) startingPage = 1;
+      if (startingPage < 1) startingPage = 1;
+
+      if (title) {
+        const newBook = {
+          id: Date.now(),
+          title: title,
+          startingPage: startingPage
+        };
+
+        state.books.push(newBook);
+        state.counts[newBook.id] = 0;
+        state.currentPages[newBook.id] = startingPage;
+        state.startingPages[newBook.id] = startingPage;
+        saveState();
+        renderBooks();
+        selectBook(newBook.id);
+        input.value = '';
+        startingPageInput.value = '1';
+      }
+    }
+
+    function deleteBook(id) {
+      if (confirm('Supprimer ce livre et son compteur ?')) {
+        state.books = state.books.filter(b => b.id !== id);
+        delete state.counts[id];
+        delete state.currentPages[id];
+        delete state.startingPages[id];
+        saveState();
+        renderBooks();
+        renderProgress();
+
+        if (state.currentBook === id) {
+          state.currentBook = state.books[0]?.id || null;
+          if (state.currentBook) selectBook(state.currentBook);
+        }
+      }
+    }
+
+    function renderBooks() {
+      const grid = document.getElementById('bookGrid');
+      grid.innerHTML = '';
+
+      state.books.forEach(book => {
+        const card = document.createElement('div');
+        card.className = `book-card ${state.currentBook === book.id ? 'active' : ''}`;
+        card.innerHTML = `
+          <div class="book-actions">
+            <button class="action-btn delete" onclick="deleteBook(${book.id})">×</button>
+          </div>
+          <div class="book-title">${book.title}</div>
+        `;
+
+        card.addEventListener('click', () => {
+          if (state.currentBook === book.id) return;
+          const previousBook = state.currentBook;
+          updateCurrentPage(previousBook);
+          selectBook(book.id);
+        });
+        grid.appendChild(card);
+      });
+
+      const hasBooks = state.books.length > 0;
+      document.querySelector('.counter-container').style.display = hasBooks ? 'block' : 'none';
+      document.getElementById('progressContainer').style.display = hasBooks ? 'block' : 'none';
+    }
+
+    function updateCurrentPage(previousBookId) {
+      if (previousBookId && state.currentPages[previousBookId]) {
+        const response = prompt(`Page actuelle pour "${state.books.find(b => b.id === previousBookId).title}" ?`, state.currentPages[previousBookId]);
+        if (response !== null) {
+          let newPage = parseInt(response);
+          if (!isNaN(newPage)) {
+            state.currentPages[previousBookId] = newPage;
+            saveState();
+            renderProgress();
+          }
+        }
+      }
+    }
+
+    function selectBook(id) {
+      state.currentBook = id;
+      document.getElementById('bookTitle').textContent = `${state.books.find(b => b.id === id)?.title || ''} - Pages spéciales`;
+      updateCounterDisplay();
+      renderBooks();
+    }
+
+    function incrementCounter() {
+      if (!state.currentBook) return;
+      state.counts[state.currentBook]++;
+      saveState();
+      updateCounterDisplay();
+      animateCounter();
+      renderProgress();
+    }
+
+    function updateCounterDisplay() {
+      const count = state.counts[state.currentBook] || 0;
+      document.getElementById('counter').textContent = count;
+    }
+
+    function animateCounter() {
+      const counter = document.getElementById('counter');
+      counter.style.transform = 'scale(1.1)';
+      setTimeout(() => counter.style.transform = 'scale(1)', 100);
+    }
+
+    function showProgress() {
+      renderProgress(true);
+    }
+
+    function renderProgress(forceUpdate = false) {
+      const container = document.getElementById('progressContainer');
+      container.innerHTML = '<h3>Progression des Livres</h3>';
+
+      let totalPages = 0;
+
+      if (forceUpdate && state.currentBook) {
+        const book = state.books.find(b => b.id === state.currentBook);
+        if (book) {
+          const response = prompt(`Page actuelle pour "${book.title}" ?`, state.currentPages[book.id]);
+          if (response !== null) {
+            let newPage = parseInt(response);
+            if (!isNaN(newPage)) {
+              state.currentPages[book.id] = newPage;
+              saveState();
+            }
+          }
+        }
+      }
+
+      state.books.forEach(book => {
+        const start = state.startingPages[book.id];
+        const current = state.currentPages[book.id];
+        const count = state.counts[book.id] || 0;
+        const progress = current - start - count;
+
+        totalPages += progress;
+
+        const entry = document.createElement('div');
+        entry.className = 'progress-entry';
+        entry.innerHTML = `
+          <span>${book.title}</span>
+          <span>${progress} pages (${current} - ${start} - ${count})</span>
+        `;
+        container.appendChild(entry);
+      });
+
+      const totalElement = document.createElement('div');
+      totalElement.className = 'progress-total';
+      totalElement.textContent = `Total des pages de texte: ${totalPages}`;
+      container.appendChild(totalElement);
+    }
+
+    function saveState() {
+      localStorage.setItem('books', JSON.stringify(state.books));
+      localStorage.setItem('counts', JSON.stringify(state.counts));
+      localStorage.setItem('currentPages', JSON.stringify(state.currentPages));
+      localStorage.setItem('startingPages', JSON.stringify(state.startingPages));
+    }
+
+    // Desktop: allow keyboard presses or clicking the counter container (if not mobile)
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if ([
+        'Meta', 'Control', 'Alt', 'Shift', 'Escape', 'Fn',
+        'F1', 'F2', 'F3', 'F4', 'F5', 'F6',
+        'F7', 'F8', 'F9', 'F10', 'F11', 'F12'
+      ].includes(e.key)) return;
+
+      e.preventDefault();
+      incrementCounter();
+    });
+
+    // For desktop, clicking anywhere on the counter container increments the counter.
+    document.getElementById('counterContainer').addEventListener('click', function(e) {
+      // Only trigger if not clicking the mobile button (if it exists) or refresh button.
+      if (e.target.tagName !== "BUTTON") {
+        // On desktop only – mobile uses the big + button.
+        if (!window.matchMedia("(pointer: coarse)").matches) {
+          incrementCounter();
+        }
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>
