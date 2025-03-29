@@ -417,7 +417,7 @@
     }
 
     function deleteBook(e, id) {
-      e.stopPropagation();
+      if (e && e != null) e.stopPropagation();
       if (confirm('Supprimer ce livre et son compteur ?')) {
         const wasCurrent = state.currentBook === id;
 
@@ -446,7 +446,7 @@
     }
 
     function markAsRead(e, id) {
-      e.stopPropagation();
+      if (e && e != null) e.stopPropagation();
       const book = state.books.find(b => b.id === id);
       if (book && !book.read) {
         const currentPage = prompt(`Page actuelle pour "${book.title}" ?`, state.currentPages[id]);
@@ -497,7 +497,10 @@
         });
 
         select.addEventListener('change', (e) => {
-            selectBook(parseInt(e.target.value));
+          if (state.currentBook) {
+            updateCurrentPage(state.currentBook);
+          }
+          selectBook(parseInt(e.target.value));
         });
 
         const buttonContainer = document.createElement('div');
@@ -721,14 +724,14 @@
     function deleteBookMobile() {
       const select = document.getElementById('mobileBookSelect');
       const id = parseInt(select.value);
-      if (id) deleteBook(id);
+      if (id) deleteBook(null, id);
       select.value = state.currentBook || '';
     }
 
     function markAsReadMobile() {
       const select = document.getElementById('mobileBookSelect');
       const id = parseInt(select.value);
-      if (id) markAsRead(id);
+      if (id) markAsRead(null, id);
     }
 
     function fullReset() {
