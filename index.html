@@ -384,9 +384,9 @@
       const startingPageInput = document.getElementById('startingPage');
       const genreInput = document.getElementById('genreInput');
       const title = input.value.trim();
-      let startingPage = parseInt(startingPageInput.value);
+      let startingPage = parseInt(startingPageInput.value)-1;
 
-      if (isNaN(startingPage) || startingPage < 1) startingPage = 1;
+      if (isNaN(startingPage) || startingPage < 1) startingPage = 0;
 
       if (title) {
         const rawGenres = genreInput.value;
