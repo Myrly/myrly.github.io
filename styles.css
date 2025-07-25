@@ -1,0 +1,29 @@
+#overlay {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    padding: 20px;
+    color: white;
+    width: 65ch;
+    text-align: center;
+}
+
+.nice-text {
+    font-family: 'Arial', sans-serif;
+    font-size: 18px;
+    line-height: 1.5;
+    color: #f0f0f0;
+}
+
+.glassy-round-button {
+    background: rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+    padding: 10px 20px;
+    color: rgb(255, 255, 255);
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.1);
+    font-size: 16px;
+    cursor: pointer;
+}

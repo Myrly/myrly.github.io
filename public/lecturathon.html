@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Compteur Lecturathon</title>
+  <style>
+    :root {
+      --primary: #2c3e50;
+      --secondary: #3498db;
+      --danger: #e74c3c;
+      --success: #2ecc71;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #f8f9fa;
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 20px;
+    }
+
+    .management-bar {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .update-buttons {
+      margin-top: 2rem;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .management-buttons {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+
+    input, button {
+      padding: 0.5rem 1rem;
+      border: 2px solid var(--primary);
+      border-radius: 5px;
+      font-size: 1rem;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button {
+      background: var(--primary);
+      color: white;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .book-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      width: 100%;
+      max-width: 1000px;
+    }
+
+    .book-card {
+      position: relative;
+      padding: 1rem;
+      background: white;
+      border: 2px solid var(--primary);
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .book-card:hover {
+      background: #f5f5f5;
+    }
+
+    .book-card.active {
+      border-color: var(--secondary);
+      background: #f0f8ff;
+    }
+    
+    .book-card.read {
+      background: #ddd !important;
+      opacity: 0.9;
+      text-decoration: line-through;
+      pointer-events: none;
+    }
+
+    .book-actions {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      display: flex;
+      gap: 5px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .book-card:hover .book-actions {
+      opacity: 1;
+    }
+
+    .action-btn {
+      padding: 4px 8px;
+      border: none;
+      background: rgba(0,0,0,0.1);
+      cursor: pointer;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .action-btn.delete {
+      background: var(--danger);
+      color: white;
+    }
+    
+    .action-btn.mark-read {
+      background: var(--success);
+      color: white;
+    }
+
+    .counter-container {
+      margin-top: 2rem;
+      text-align: center;
+      width: 95%;
+      max-width: 700px;
+      position: relative;
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      cursor: pointer;
+      -moz-user-select: -moz-none;
+      -khtml-user-select: none;
+      -webkit-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+
+    #counter {
+      font-size: 6rem;
+      font-weight: bold;
+      color: var(--primary);
+      margin: 1rem 0;
+    }
+
+    #counterHint {
+      margin-bottom: 1rem;
+      font-size: 1rem;
+      color: #555;
+    }
+
+    input[type="number"] {
+      width: 120px;
+    }
+
+    .progress-container {
+      margin-top: 2rem;
+      width: 100%;
+      max-width: 800px;
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .progress-entry {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .progress-total {
+      font-weight: bold;
+      color: var(--success);
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 2px solid var(--primary);
+    }
+    
+    #exportButton {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      border: 2px solid var(--primary);
+      border-radius: 5px;
+      background: var(--primary);
+      color: white;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    #exportButton:hover {
+      opacity: 0.9;
+    }
+
+    #fullResetButton {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      border: 2px solid var(--danger);
+      border-radius: 5px;
+      background: var(--danger);
+      color: white;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    #fullResetButton:hover {
+      opacity: 0.9;
+    }
+
+    .divider {
+      margin: 2rem 0;
+      border-top: 2px solid var(--primary);
+      width: 100%;
+      max-width: 800px;
+    }
+
+    .stats-section {
+      width: 95%;
+      max-width: 800px;
+      margin-top: 1rem;
+    }
+
+    .danger-zone {
+      margin-top: 3rem;
+      padding: 1rem;
+      border: 2px solid var(--danger);
+      border-radius: 8px;
+      max-width: 800px;
+      width: 100%;
+    }
+
+    #mobileBookSelect {
+      border: 2px solid var(--primary);
+      border-radius: 5px;
+      background: white;
+      font-size: 1rem;
+    }
+
+    .finished-books {
+      opacity: 0.7;
+      margin-top: 1.5rem;
+    }
+
+    @media (hover: none) {
+      .book-grid {
+        display: block;
+        width: 95%;
+        max-width: 400px;
+        margin: 0 auto;
+      }
+
+      #mobileBookSelect {
+        width: 95%;
+        padding: 0.5rem;
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .mobile-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        width: 100%;
+      }
+
+      .mobile-buttons button {
+        width: 100%;
+        padding: 0.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="management-bar">
+    <input type="text" id="bookInput" placeholder="Titre du livre">
+    <input type="number" id="startingPage" title="Page de départ" min="1" value="1" placeholder="Page de départ">
+    <input type="text" id="genreInput" placeholder="Séparez chaque genre par une virgule">
+    <button onclick="addBook()">Ajouter un livre</button>
+  </div>
+  
+  <div class="book-grid" id="bookGrid"></div>
+
+  <div class="counter-container" id="counterContainer">
+    <h2 id="bookTitle"></h2>
+    <div id="counter">0</div>
+    <div id="counterHint"></div>
+  </div>
+
+  <div class="update-buttons">
+    <button id="refreshButton" onclick="showProgress()">Actualiser la progression</button>
+    <button id="pauseButton" onclick="pause()">Je fais une pause</button>
+    <button id="unpauseButton" style="display: none" onclick="unpause()">Je reprends</button>
+  </div>
+
+  <div class="progress-container" id="progressContainer"></div>
+  
+  <div class="management-buttons">
+    <button id="exportButton" onclick="exportData()">Exporter les données</button>
+    <button id="fullResetButton" onclick="fullReset()" style="margin-left: auto;">Tout réinitialiser</button>
+  </div>
+
+  <script>
+   let state = {
+      currentBook: null,
+      books: JSON.parse(localStorage.getItem('books')) || [],
+      counts: JSON.parse(localStorage.getItem('counts')) || {},
+      currentPages: JSON.parse(localStorage.getItem('currentPages')) || {},
+      startingPages: JSON.parse(localStorage.getItem('startingPages')) || {},
+      log: JSON.parse(localStorage.getItem('log')) || [],
+      paused: JSON.parse(localStorage.getItem('paused')) || false
+    };
+
+    function getOngoingBooks() {
+      return state.books.filter(b => !b.read);
+    }
+
+    function getFinishedBooks() {
+      return state.books.filter(b => b.read);
+    }
+
+    function logAction(action, details = {}) {
+      const entry = {
+        timestamp: new Date().toISOString(),
+        action,
+        details
+      };
+      state.log.push(entry);
+      saveState();
+    }
+
+    function init() {
+      renderBooks();
+      renderProgress();
+      ongoingBooks = getOngoingBooks();
+      if (state.books.length > 0) selectBook(ongoingBooks[0].id);
+      if (state.paused) {
+        document.getElementById('pauseButton').style.display = 'none';
+        document.getElementById('unpauseButton').style.display = 'inline';
+      } else {
+        document.getElementById('pauseButton').style.display = 'inline';
+        document.getElementById('unpauseButton').style.display = 'none';
+      }
+      configureDeviceUI();
+      logAction("Init", { books: state.books.length });
+    }
+
+    function configureDeviceUI() {
+      const isMobile = window.matchMedia("(pointer: coarse)").matches;
+      const hintEl = document.getElementById('counterHint');
+      const refreshBtn = document.getElementById('refreshButton');
+      const counterContainer = document.getElementById('counterContainer');
+
+      if (isMobile) {
+        hintEl.textContent = "Appuyez sur la zone pour incrémenter le compteur";
+        counterContainer.style.cursor = "pointer";
+      } else {
+        hintEl.textContent = "Appuyez sur une touche du clavier ou cliquez sur la zone pour incrémenter le compteur";
+      }
+    }
+
+    function processGenres(input) {
+      return input.split(",").map(g => {
+        let genre = g.trim();
+        genre = genre.replace(/\s+/g, "-");
+        genre = genre.replace(/[^a-zA-Z0-9\/\-_]/g, "");
+        return genre;
+      }).filter(genre => genre !== "");
+    }
+
+    function addBook() {
+      const input = document.getElementById('bookInput');
+      const startingPageInput = document.getElementById('startingPage');
+      const genreInput = document.getElementById('genreInput');
+      const title = input.value.trim();
+      let startingPage = parseInt(startingPageInput.value)-1;
+
+      if (isNaN(startingPage) || startingPage < 1) startingPage = 0;
+
+      if (title) {
+        const rawGenres = genreInput.value;
+        const genres = rawGenres ? processGenres(rawGenres) : [];
+
+        const newBook = {
+          id: Date.now(),
+          title: title,
+          startingPage: startingPage,
+          read: false,
+          genres: genres
+        };
+
+        state.books.push(newBook);
+        state.counts[newBook.id] = 0;
+        state.currentPages[newBook.id] = startingPage;
+        state.startingPages[newBook.id] = startingPage;
+        saveState();
+        renderBooks();
+        if (state.currentBook == null) {
+          selectBook(newBook.id);
+        }
+        logAction("Add Book", { id: newBook.id, title });
+        input.value = '';
+        startingPageInput.value = '1';
+        genreInput.value = '';
+      }
+    }
+
+    function deleteBook(e, id) {
+      if (e && e != null) e.stopPropagation();
+      if (confirm('Supprimer ce livre et son compteur ?')) {
+        const wasCurrent = state.currentBook === id;
+
+        state.books = state.books.filter(b => b.id !== id);
+        delete state.counts[id];
+        delete state.currentPages[id];
+        delete state.startingPages[id];
+        
+        saveState();
+
+        if (wasCurrent) {
+          const ongoing = getOngoingBooks();
+          if (ongoing.length > 0) {
+            selectBook(ongoing[0].id);
+          } else {
+            state.currentBook = null;
+            document.getElementById('bookTitle').textContent = '';
+            updateCounterDisplay();
+          }
+        }
+        
+        renderBooks();
+        renderProgress();
+        logAction("Delete Book", { id });
+      }
+    }
+
+    function markAsRead(e, id) {
+      if (e && e != null) e.stopPropagation();
+      const book = state.books.find(b => b.id === id);
+      if (book && !book.read) {
+        const currentPage = prompt(`Page actuelle pour "${book.title}" ?`, state.currentPages[id]);
+        if (currentPage !== null) {
+          let newPage = parseInt(currentPage);
+          if (!isNaN(newPage)) state.currentPages[id] = newPage;
+        }
+        book.read = true;
+        saveState();
+
+        if (state.currentBook === id) {
+          const ongoing = getOngoingBooks();
+          if (ongoing.length > 0) {
+            selectBook(ongoing[0].id);
+          } else {
+            state.currentBook = null;
+            document.getElementById('bookTitle').textContent = '';
+            updateCounterDisplay();
+          }
+        }
+
+        renderBooks();
+        renderProgress();
+        logAction("Read Book", { id });
+      }
+    }
+
+    function renderBooks() {
+      const grid = document.getElementById('bookGrid');
+      grid.innerHTML = '';
+
+      const ongoingBooks = getOngoingBooks();
+      const finishedBooks = getFinishedBooks();
+      const isMobile = window.matchMedia("(pointer: coarse)").matches;
+
+      if (isMobile) {
+        const select = document.createElement('select');
+        select.id = 'mobileBookSelect';
+
+        state.books.forEach(book => {
+          if (!book.read) {
+            const option = document.createElement('option');
+            option.value = book.id;
+            option.textContent = book.title;
+            option.selected = state.currentBook === book.id;
+            select.appendChild(option);
+          }
+        });
+
+        select.addEventListener('change', (e) => {
+          if (state.currentBook) {
+            updateCurrentPage(state.currentBook);
+          }
+          selectBook(parseInt(e.target.value));
+        });
+
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'mobile-buttons';
+        buttonContainer.innerHTML = `
+          <button class="action-btn delete" onclick="deleteBookMobile()">× Supprimer</button>
+          <button class="action-btn mark-read" onclick="markAsReadMobile()">✓ Terminé</button>
+        `;
+
+        grid.appendChild(select);
+        grid.appendChild(buttonContainer);
+      } else {
+        ongoingBooks.forEach(book => {
+          const cardClasses = ["book-card"];
+          if (state.currentBook === book.id) cardClasses.push("active");
+          if (book.read) cardClasses.push("read");
+
+          const card = document.createElement('div');
+          card.className = cardClasses.join(" ");
+          card.innerHTML = `
+            <div class="book-actions">
+              <button class="action-btn delete" onclick="deleteBook(event, ${book.id})">× Supprimer</button>
+              <button class="action-btn mark-read" onclick="markAsRead(event, ${book.id})">✓ Terminé</button>
+            </div>
+            <div class="book-title">${book.title}</div>
+          `;
+
+          if (!book.read) {
+            card.addEventListener('click', () => {
+              if (state.currentBook === book.id) return;
+              updateCurrentPage(state.currentBook);
+              selectBook(book.id);
+            });
+          }
+          grid.appendChild(card);
+        });
+      }
+
+      const hasBooks = state.books.length > 0;
+      document.querySelector('.counter-container').style.display = hasBooks ? 'block' : 'none';
+      document.getElementById('progressContainer').style.display = hasBooks ? 'block' : 'none';
+    }
+
+    function updateCurrentPage(previousBookId) {
+      if (previousBookId && state.currentPages[previousBookId]) {
+        const response = prompt(`Page actuelle pour "${state.books.find(b => b.id === previousBookId).title}" ?`, state.currentPages[previousBookId]);
+        if (response !== null) {
+          let newPage = parseInt(response);
+          if (!isNaN(newPage)) {
+            state.currentPages[previousBookId] = newPage;
+            saveState();
+            renderProgress();
+          }
+        }
+      }
+    }
+
+    function selectBook(id) {
+      state.currentBook = id;
+      document.getElementById('bookTitle').textContent = `${state.books.find(b => b.id === id)?.title || ''} - Pages spéciales (à ne pas compter)`;
+      updateCounterDisplay();
+      renderBooks();
+    }
+
+    function autoSelectBook() {
+      const ongoing = getOngoingBooks();
+      if (ongoing.length > 0) {
+        const firstOngoing = ongoing[0];
+        if (firstOngoing.id !== state.currentBook) {
+          selectBook(firstOngoing.id);
+        }
+      } else {
+        state.currentBook = null;
+        document.getElementById('bookTitle').textContent = '';
+        updateCounterDisplay();
+        renderBooks();
+      }
+    }
+
+    function incrementCounter() {
+      if (!state.currentBook) return;
+      state.counts[state.currentBook]++;
+      saveState();
+      updateCounterDisplay();
+      animateCounter();
+      renderProgress();
+    }
+
+    function updateCounterDisplay() {
+      const count = state.counts[state.currentBook] || 0;
+      document.getElementById('counter').textContent = count;
+    }
+
+    function pause() {
+      state.paused = true;
+      saveState();
+      logAction("pause");
+      document.getElementById('pauseButton').style.display = 'none';
+      document.getElementById('unpauseButton').style.display = 'inline';
+    }
+
+    function unpause() {
+      state.paused = false;
+      saveState();
+      logAction("unpause");
+      document.getElementById('pauseButton').style.display = 'inline';
+      document.getElementById('unpauseButton').style.display = 'none';
+    }
+
+    function animateCounter() {
+      const counter = document.getElementById('counter');
+      counter.style.transform = 'scale(1.1)';
+      setTimeout(() => counter.style.transform = 'scale(1)', 100);
+    }
+
+    function showProgress() {
+      renderProgress(true);
+    }
+
+    function renderProgress(forceUpdate = false) {
+      const container = document.getElementById('progressContainer');
+      container.innerHTML = '';
+      
+      const ongoingBooks = getOngoingBooks();
+      const finishedBooks = getFinishedBooks();
+      let totalPages = 0;
+
+      if (forceUpdate && state.currentBook) {
+        const book = state.books.find(b => b.id === state.currentBook);
+        if (book) {
+          const response = prompt(`Page actuelle pour "${book.title}" ?`, state.currentPages[book.id]);
+          if (response !== null) {
+            let newPage = parseInt(response);
+            if (!isNaN(newPage)) {
+              state.currentPages[book.id] = newPage;
+              saveState();
+            }
+          }
+        }
+      }
+
+      const ongoingSection = document.createElement('div');
+      ongoingSection.innerHTML = '<h3>Progression en Cours</h3>';
+      ongoingBooks.forEach(book => {
+        const start = state.startingPages[book.id];
+        const current = state.currentPages[book.id];
+        const count = state.counts[book.id] || 0;
+        const progress = current - start - count;
+        totalPages += progress;
+
+        ongoingSection.innerHTML += `
+          <div class="progress-entry">
+            <span>${book.title}</span>
+            <span>${progress} pages (${current} - ${start} - ${count})</span>
+          </div>
+        `;
+      });
+      container.appendChild(ongoingSection);
+
+      if (finishedBooks.length > 0) {
+        const finishedSection = document.createElement('div');
+        finishedSection.innerHTML = '<h3>Livres Terminés</h3>';
+        finishedBooks.forEach(book => {
+          const start = state.startingPages[book.id];
+          const current = state.currentPages[book.id];
+          const count = state.counts[book.id] || 0;
+          const progress = current - start - count;
+          totalPages += progress;
+
+          finishedSection.innerHTML += `
+            <div class="progress-entry read">
+              <span>${book.title}</span>
+              <span>${progress} pages (${current} - ${start} - ${count})</span>
+            </div>
+          `;
+        });
+        container.appendChild(finishedSection);
+      }
+
+      const totalElement = document.createElement('div');
+      totalElement.className = 'progress-total';
+      totalElement.textContent = `Total Général: ${totalPages} pages`;
+      container.appendChild(totalElement);
+    }
+
+    function saveState() {
+      localStorage.setItem('books', JSON.stringify(state.books));
+      localStorage.setItem('counts', JSON.stringify(state.counts));
+      localStorage.setItem('currentPages', JSON.stringify(state.currentPages));
+      localStorage.setItem('startingPages', JSON.stringify(state.startingPages));
+      localStorage.setItem('log', JSON.stringify(state.log));
+      localStorage.setItem('paused', JSON.stringify(state.paused));
+    }
+
+    function exportData() {
+      const now = new Date();
+      const formattedDate = now.toISOString()
+        .replace(/T/, '_')
+        .replace(/\..+/, '')
+        .replace(/:/g, '-');
+      const fileName = `bookathon_data_export_${formattedDate}.json`;
+      
+      const data = {
+        version: 1,
+        books: state.books,
+        counts: state.counts,
+        currentPages: state.currentPages,
+        startingPages: state.startingPages,
+        log: state.log
+      };
+      const jsonData = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function deleteBookMobile() {
+      const select = document.getElementById('mobileBookSelect');
+      const id = parseInt(select.value);
+      if (id) deleteBook(null, id);
+      select.value = state.currentBook || '';
+    }
+
+    function markAsReadMobile() {
+      const select = document.getElementById('mobileBookSelect');
+      const id = parseInt(select.value);
+      if (id) markAsRead(null, id);
+    }
+
+    function fullReset() {
+      if (confirm('Êtes-vous sûr de vouloir tout réinitialiser ? Toutes les données seront perdues.')) {
+        localStorage.clear();
+        state = {
+          currentBook: null,
+          books: [],
+          counts: {},
+          currentPages: {},
+          startingPages: {},
+          log: []
+        };
+        renderBooks();
+        renderProgress();
+        document.querySelector('.counter-container').style.display = 'none';
+        document.getElementById('progressContainer').style.display = 'none';
+      }
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if ([
+        'Meta', 'Control', 'Alt', 'Shift', 'Escape', 'Fn',
+        'F1', 'F2', 'F3', 'F4', 'F5', 'F6',
+        'F7', 'F8', 'F9', 'F10', 'F11', 'F12'
+      ].includes(e.key)) return;
+
+      e.preventDefault();
+      incrementCounter();
+    });
+
+    document.getElementById('counterContainer').addEventListener('click', function(e) {
+      if (e.target.tagName !== "BUTTON") {
+        incrementCounter();
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>
