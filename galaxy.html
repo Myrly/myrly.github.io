@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galaxy Scene</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; 
+            background: black;
+        }
+        #threejs-canvas {
+            display: block;
+        }
+    </style>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div style="position: relative; width: 100%; height: 100vh;">
+        <canvas id="threejs-canvas"></canvas>
+        <div id="overlay" class="nice-text">
+            <h2>Hey toi,</h1>
+            <p>Le site "Lecturathon" ne sera désormais plus maintenu. Comme il n'est plus nécessaire de soustraire les "non-pages", il perd grandement son intérêt. Il faut toutefois toujours faire attention aux pages au début et à la fin des livres. Cela peut être relativement facilement calculé, mais le site fonctionne toujours si ce système reste pratique pour vous. (j'avais envie de mettre une galaxie).</p>
+            <p>La suite ? L'appli de lecture complète, qui inclura parmi ses "challenges", "jeux", "activités", appelez ça comme vous voulez, un marathon.</p>
+            <button class="glassy-round-button" onclick="window.location.href='lecturathon.html'">Accéder tout de même au site ></button>
+        </div>
+    </div>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+    <script type="module" src="main.js"></script>
+</body>
+</html>
